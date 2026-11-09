@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
-# Доставка статического ресурса на devops-vm
-# Использование: scripts/deploy.sh [--dry-run]
 set -euo pipefail
-REMOTE="${REMOTE-devops}"                 # пусто = локальная доставка (стенд внутри ВМ)
-REMOTE_DIR="${REMOTE_DIR:-/var/www/devops-site}"
-SITE_URL="${SITE_URL:-https://devops.local}"
-CA_CERT="${CA_CERT:-${HOME}/devops.crt}"
-RESOLVE="${RESOLVE:-}"
-ROOT="$(git rev-parse --show-toplevel)"
-LOCAL_DIR="${ROOT}/site/"
-DRY=""
-[ "${1:-}" = "--dry-run" ] && DRY="--dry-run"
-[ -f "${LOCAL_DIR}index.html" ] || { echo "ОШИБКА: нет site/index.html" >&2; exit 1; }
-if [ -n "$(git -C "$ROOT" status --porcelain)" ]; then echo "ОШИБКА: есть незафиксированные изменения" >&2; exit 1; fi
-DEST="${REMOTE_DIR}/"; [ -n "$REMOTE" ] && DEST="${REMOTE}:${REMOTE_DIR}/"
-rsync -avz --delete --chmod=D755,F644 $DRY -e "ssh -o BatchMode=yes -o ConnectTimeout=5" "$LOCAL_DIR" "$DEST"
-[ -n "$DRY" ] && exit 0
-CURL=(curl -fsS -o /dev/null --cacert "$CA_CERT"); [ -n "$RESOLVE" ] && CURL+=(--resolve "$RESOLVE")
-"${CURL[@]}" "$SITE_URL" || { echo "ОШИБКА: ресурс недоступен" >&2; exit 1; }
-echo "OK $(git -C "$ROOT" rev-parse --short HEAD)"
+root=$(cd -- "$(dirname -- "$0")/.." && pwd)
+remote=${REMOTE:-devops}
+dest=${REMOTE_DIR:-/var/www/devops-site}
+url=${SITE_URL:-https://devops.local}
+ca=${CA_CERT:-"$HOME/devops.crt"}
+ssh_cmd=${DEPLOY_SSH:-ssh -o BatchMode=yes -o ConnectTimeout=5}
+opts=(-avzi --delete --chmod=D755,F644)
+case "$#:${1-}" in
+  0:) ;;
+  1:--dry-run) opts+=(--dry-run) ;;
+  *) echo 'Usage: scripts/deploy.sh [--dry-run]' >&2; exit 1 ;;
+esac
+[[ -f "$root/site/index.html" ]] || { echo 'ERROR: missing site/index.html' >&2; exit 1; }
+[[ -z "$(git -C "$root" status --porcelain)" ]] || { echo 'ERROR: uncommitted changes' >&2; exit 1; }
+rsync "${opts[@]}" -e "$ssh_cmd" "$root/site/" "$remote:$dest/" || exit 1
+[[ "${1-}" != --dry-run ]] || exit 0
+curl -fsS --max-time 10 --cacert "$ca" -o /dev/null "$url" || { echo 'ERROR: HTTPS health check failed' >&2; exit 1; }
+printf 'OK %s\n' "$(git -C "$root" rev-parse --short HEAD)"
