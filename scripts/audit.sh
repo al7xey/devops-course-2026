@@ -51,6 +51,8 @@ if (( through >= 8 )); then
   check 'No published Redis port' '' "$(compose kr2 port redis 6379 2>/dev/null)"
   check 'Redis environment file mode' 600 "$(stat -c '%a' "$home/kr2/.env")"
   check 'KR2 TLS key mode and owner' '600 root' "$(admin stat -c '%a %U' /etc/ssl/private/kr2.key)"
+  check "KR2 certificate valid for $days days" ok "$(ok openssl x509 -in /etc/ssl/certs/kr2.crt -noout -checkend "$((days * 86400))")"
+  check 'KR2 site enabled' ok "$(ok test -L /etc/nginx/sites-enabled/kr2)"
   check 'HTTPS health' ok "$(ok curl -fsS --cacert /etc/ssl/certs/kr2.crt --resolve kv.devops.local:443:127.0.0.1 https://kv.devops.local/health)"
 fi
 printf 'Passed: %s; failed: %s\n' "$pass" "$fail"
