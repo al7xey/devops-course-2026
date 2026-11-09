@@ -16,5 +16,7 @@ esac
 [[ -z "$(git -C "$root" status --porcelain)" ]] || { echo 'ERROR: uncommitted changes' >&2; exit 1; }
 rsync "${opts[@]}" -e "$ssh_cmd" "$root/site/" "$remote:$dest/" || exit 1
 [[ "${1-}" != --dry-run ]] || exit 0
-curl -fsS --max-time 10 --cacert "$ca" -o /dev/null "$url" || { echo 'ERROR: HTTPS health check failed' >&2; exit 1; }
+curl_opts=()
+if [[ -n "${CURL_RESOLVE:-}" ]]; then curl_opts+=(--resolve "$CURL_RESOLVE"); fi
+curl -fsS --max-time 10 "${curl_opts[@]}" --cacert "$ca" -o /dev/null "$url" || { echo 'ERROR: HTTPS health check failed' >&2; exit 1; }
 printf 'OK %s\n' "$(git -C "$root" rev-parse --short HEAD)"
