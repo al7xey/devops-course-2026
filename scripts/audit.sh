@@ -48,7 +48,7 @@ if (( through >= 8 )); then
   redis=$(compose kr2 ps -q redis 2>/dev/null) || redis=
   check 'Redis healthy' healthy "$(admin docker inspect -f '{{.State.Health.Status}}' "$redis" 2>/dev/null)"
   check 'KR2 bound to loopback' 127.0.0.1:8004 "$(compose kr2 port app 8004 2>/dev/null)"
-  check 'No published Redis port' '' "$(compose kr2 port redis 6379 2>/dev/null)"
+  check 'No published Redis port' 0 "$(admin docker inspect -f '{{len .HostConfig.PortBindings}}' "$redis" 2>/dev/null)"
   check 'Redis environment file mode' 600 "$(stat -c '%a' "$home/kr2/.env")"
   check 'KR2 TLS key mode and owner' '600 root' "$(admin stat -c '%a %U' /etc/ssl/private/kr2.key)"
   check "KR2 certificate valid for $days days" ok "$(ok openssl x509 -in /etc/ssl/certs/kr2.crt -noout -checkend "$((days * 86400))")"
